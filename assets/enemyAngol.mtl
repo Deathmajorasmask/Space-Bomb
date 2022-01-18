@@ -1,0 +1,9 @@
+newmtl Angol:body_png
+illum 4
+Kd 0.00 0.00 0.00
+Ka 0.00 0.00 0.00
+Tf 1.00 1.00 1.00
+map_Kd body.png
+Ni 1.00
+Ks 0.25 0.25 0.25
+Ns 96.08

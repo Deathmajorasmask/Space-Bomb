@@ -1,0 +1,9 @@
+newmtl mesh_ob001_bombSG
+illum 4
+Kd 0.64 0.64 0.64
+Ka 0.20 0.20 0.20
+Tf 1.00 1.00 1.00
+map_Kd tex_ob001_bomb_AL.png
+Ni 1.00
+Ks 0.20 0.20 0.20
+Ns 18.00

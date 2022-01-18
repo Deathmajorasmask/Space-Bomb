@@ -1,0 +1,10 @@
+newmtl BaseSG
+illum 4
+Kd 0.64 0.64 0.64
+Ka 0.00 0.00 0.00
+Tf 1.00 1.00 1.00
+map_Kd portal_base.png
+bump  -bm 1 portal_base_normal.png
+Ni 1.00
+Ks 0.25 0.25 0.25
+Ns 23.00
