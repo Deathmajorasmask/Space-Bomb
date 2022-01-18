@@ -1,0 +1,2458 @@
+<html>
+
+<head>
+    <title>Space Bomb</title>
+    <link rel="shortcut icon" href="assets/SBProfile.png">
+    <script type="text/javascript" src="js/libs/jquery/jquery-2.1.4.min.js"></script>
+    <script type="text/javascript" src="js/libs/three/three.js"></script>
+    <script type="text/javascript" src="js/libs/three/MTLLoader.js"></script>
+    <script type="text/javascript" src="js/libs/three/OBJLoader.js"></script>
+    <script type="text/javascript" src="js/mifacebook.js"></script>
+   
+    <style>
+        #bar-section {
+            height: 5%;
+            width: 99.7%;
+            background-color: blue;
+        }
+        
+        #bar-imagenes {
+            height: 90%;
+            width: 2%;
+        }
+        
+        #bar-imagenes-menu {
+            float: right;
+            height: 90%;
+            width: 7%;
+        }
+        
+        #bar-label {
+            font-size: 200%;
+            color: white;
+        }
+        
+        #bar-label-points {
+            font-size: 200%;
+            color: white;
+        }
+        
+        #bar-label-life {
+            font-size: 200%;
+            color: white;
+        }
+        
+        #menu-principal {
+            height: 100%;
+            width: 100%;
+        }
+        
+        #menu-principal-background {
+            height: 100%;
+            width: 100%;
+        }
+        
+        #menu-principal-button01 {
+            position: absolute;
+            top: 25%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            height: 15%;
+            width: 25%;
+        }
+        
+        #menu-principal-button02 {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            height: 15%;
+            width: 25%;
+        }
+        
+        #menu-principal-button03 {
+            position: absolute;
+            top: 75%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            height: 15%;
+            width: 25%;
+        }
+        
+        #screen-end-level {
+            position: absolute;
+            top: 25%;
+            left: 25%;
+            height: 50.0%;
+            width: 50.0%;
+            background-color: 653257;
+        }
+        
+        #screen-end-win {
+            position: absolute;
+            top: 70%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            height: 50%;
+            width: 95%;
+        }
+        
+        #screen-end-lose {
+            position: absolute;
+            top: 70%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            height: 50%;
+            width: 95%;
+        }
+        
+        #screen-end-bomb {
+            position: absolute;
+            top: 30%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            height: 50%;
+            width: 25%;
+        }
+        
+        #screen-end-facebookLogo {
+            position: absolute;
+            top: 90%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            height: 8%;
+            width: 15%;
+        }
+    </style>
+    <script id="vertexShader" type="x-shader/x-vertex">
+        varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 ); }
+    </script>
+    <script id="fragmentShader" type="x-shader/x-vertex">
+        uniform sampler2D baseTexture; uniform float baseSpeed; uniform sampler2D noiseTexture; uniform float noiseScale; uniform float alpha; uniform float time; varying vec2 vUv; void main() { vec2 uvTimeShift = vUv + vec2( -0.7, 1.5 ) * time * baseSpeed; vec4
+        noiseGeneratorTimeShift = texture2D( noiseTexture, uvTimeShift ); vec2 uvNoiseTimeShift = vUv + noiseScale * vec2( noiseGeneratorTimeShift.r, noiseGeneratorTimeShift.b ); vec4 baseColor = texture2D( baseTexture, uvNoiseTimeShift ); baseColor.a
+        = alpha; gl_FragColor = baseColor; }
+    </script>
+    <script type="text/javascript">
+        var customUniforms2;
+        var statusGameEnviroment = 0;
+        var scene;
+        var camera;
+        var renderer;
+        var controls;
+        var objects = [];
+        var clock;
+        var deltaTime;
+        var keys = {};
+        var volumenGlobal = 0.5;
+        var personaje1;
+        var personaje2;
+        var bombsCharacter1 = [];
+        var bombsCharacter2 = [];
+        var flamesCharacter1 = [];
+        var flamesCharacter2 = [];
+        var scenePilaresColision = [];
+        var rayCaster;
+        var rayCasterBomb;
+        var movimientoPersonaje1 = {
+            MovX: 0,
+            MovY: 0,
+            MovZ: 0,
+            Rotate: 0,
+            blockPersonajeW: false,
+            blockPersonajeA: false,
+            blockPersonajeS: false,
+            blockPersonajeD: false
+        };
+        var movimientoPersonaje2 = {
+            MovX: 0,
+            MovY: 0,
+            MovZ: 0,
+            Rotate: 0,
+            blockPersonajeW: false,
+            blockPersonajeA: false,
+            blockPersonajeS: false,
+            blockPersonajeD: false
+        };
+        var waterAnimation = 0;
+        var waterObject;
+        var systemGameLevel01 = {
+            lifeCharacter: [3, 3],
+            timeMin: 3,
+            timeSeg: 0,
+            conditionLevel: 0,
+            active: 0,
+            points: 0
+        }
+        var portalLevelStadistics = {
+            MovX: 28,
+            MovY: -20,
+            MovZ: -2,
+            status: false,
+            open: false
+        }
+        var portalLevel;
+        var portalLevelClose;
+        var portalLevelOpen;
+        var enemyAndlarCharacters = [];
+        var enemys = {
+            Andlar: 3,
+            Beast: 0,
+            totalEnemy: 3
+        }
+        var segundos = systemGameLevel01.timeSeg;
+        var minuto = systemGameLevel01.timeMin;
+
+        var isWorldReady = [false, false];
+        $(document).ready(function() {
+            optionsCicle();
+        });
+
+        function loadOBJWithMTL(path, objFile, mtlFile, onLoadCallback) {
+            var mtlLoader = new THREE.MTLLoader();
+            mtlLoader.setPath(path);
+            mtlLoader.load(mtlFile, (materials) => {
+
+                var objLoader = new THREE.OBJLoader();
+                objLoader.setMaterials(materials);
+                objLoader.setPath(path);
+                objLoader.load(objFile, (object) => {
+                    onLoadCallback(object);
+                });
+
+            });
+        }
+
+        function onKeyDown(event) {
+            keys[String.fromCharCode(event.keyCode)] = true;
+        }
+
+        function onKeyUp(event) {
+            keys[String.fromCharCode(event.keyCode)] = false;
+        }
+
+        function render() {
+            requestAnimationFrame(render);
+            deltaTime = clock.getDelta();
+            //console.log(milisegundos);
+            waterFunction();
+            timeLevel1();
+            var yaw = 0;
+            var forward = 0;
+            if (keys["A"]) {
+                if (movimientoPersonaje1.blockPersonajeA == false && systemGameLevel01.conditionLevel == 0) {
+                    movimientoPersonaje1.MovX -= 8 * deltaTime;
+                    console.log("Movx" + movimientoPersonaje1.MovX);
+                    //yaw = 5;
+                }
+            } else if (keys["D"]) {
+                if (movimientoPersonaje1.blockPersonajeD == false && systemGameLevel01.conditionLevel == 0) {
+                    movimientoPersonaje1.MovX += 8 * deltaTime;
+                    console.log("Movx" + movimientoPersonaje1.MovX);
+                    //yaw = -5;
+                }
+            }
+            if (keys["W"]) {
+                if (movimientoPersonaje1.blockPersonajeW == false && systemGameLevel01.conditionLevel == 0) {
+                    movimientoPersonaje1.MovZ -= 8 * deltaTime;
+                    console.log("movz" + movimientoPersonaje1.MovZ);
+                    //forward = -20;
+                }
+            } else if (keys["S"]) {
+                if (movimientoPersonaje1.blockPersonajeS == false && systemGameLevel01.conditionLevel == 0) {
+                    movimientoPersonaje1.MovZ += 8 * deltaTime;
+                    console.log("movz" + movimientoPersonaje1.MovZ);
+                    //forward = 20;
+                }
+            }
+
+            if (keys["E"]) {
+                if (personaje1.dataCharacter.timeSpam == false && systemGameLevel01.conditionLevel == 0) {
+                    personaje1.dataCharacter.timeSpam = true;
+                    if (personaje1.dataCharacter.actualBomb >= 3) {
+                        personaje1.dataCharacter.actualBomb = 0;
+                    }
+                    //console.log("Bomba actual: " + personaje1.dataCharacter.actualBomb);
+                    dropBomb1();
+                    personaje1.dataCharacter.actualBomb += 1;
+                    setTimeout(enableBomb, 1000);
+                }
+            }
+
+            if (isWorldReady[0] && isWorldReady[1]) {
+
+                //camera.rotation.y += yaw * deltaTime;
+                //camera.translateZ(forward * deltaTime);
+                updateCharacter1();
+                colisionWorldPilar();
+                enemyLogicAndlar();
+                updatePortalLevel();
+                levelStatus();
+                if (statusGameEnviroment == 3) {
+                    //debugger;
+                    renderPlayer2();
+                }
+
+                //colisionWorldBlock();
+
+            }
+            renderer.render(scene, camera);
+        }
+
+        function renderPlayer2() {
+            //requestAnimationFrame(render);
+            //deltaTime = clock.getDelta();
+            //console.log(milisegundos);
+            //waterFunction();
+            //timeLevel1();
+            var yaw = 0;
+            var forward = 0;
+            if (keys["J"]) {
+                if (movimientoPersonaje2.blockPersonajeA == false && systemGameLevel01.conditionLevel == 0) {
+                    movimientoPersonaje2.MovX -= 8 * deltaTime;
+                    console.log("Movx" + movimientoPersonaje2.MovX);
+                    //yaw = 5;
+                }
+            } else if (keys["L"]) {
+                if (movimientoPersonaje2.blockPersonajeD == false && systemGameLevel01.conditionLevel == 0) {
+                    movimientoPersonaje2.MovX += 8 * deltaTime;
+                    console.log("Movx" + movimientoPersonaje2.MovX);
+                    //yaw = -5;
+                }
+            }
+            if (keys["I"]) {
+                if (movimientoPersonaje2.blockPersonajeW == false && systemGameLevel01.conditionLevel == 0) {
+                    movimientoPersonaje2.MovZ -= 8 * deltaTime;
+                    console.log("movz" + movimientoPersonaje2.MovZ);
+                    //forward = -20;
+                }
+            } else if (keys["K"]) {
+                if (movimientoPersonaje2.blockPersonajeS == false && systemGameLevel01.conditionLevel == 0) {
+                    movimientoPersonaje2.MovZ += 8 * deltaTime;
+                    console.log("movz" + movimientoPersonaje2.MovZ);
+                    //forward = 20;
+                }
+            }
+
+            if (keys["O"]) {
+                if (personaje2.dataCharacter.timeSpam == false && systemGameLevel01.conditionLevel == 0) {
+                    personaje2.dataCharacter.timeSpam = true;
+                    if (personaje2.dataCharacter.actualBomb >= 3) {
+                        personaje2.dataCharacter.actualBomb = 0;
+                    }
+                    //console.log("Bomba actual: " + personaje1.dataCharacter.actualBomb);
+                    dropBomb2();
+                    personaje2.dataCharacter.actualBomb += 1;
+                    setTimeout(enableBomb2, 1000);
+                }
+            }
+
+            if (isWorldReady[0] && isWorldReady[1]) {
+
+                //camera.rotation.y += yaw * deltaTime;
+                //camera.translateZ(forward * deltaTime);
+                updateCharacter2();
+                colisionWorldPilar2();
+                //colisionWorldPilar();
+                //enemyLogicAndlar();
+                //updatePortalLevel();
+                //levelStatus();
+                //colisionWorldBlock();
+
+            }
+            //renderer.render(scene, camera);
+        }
+
+        function setupScene() {
+            $("#menu-principal").remove();
+            $("body").append("<div id='bar-section'></div>");
+            var visibleSize = {
+                width: window.innerWidth - 20,
+                height: (window.innerHeight - (window.innerWidth * 0.05))
+            };
+            rayCaster = new THREE.Raycaster();
+            rayCasterBomb = new THREE.Raycaster();
+
+            clock = new THREE.Clock();
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, visibleSize.width / visibleSize.height, 0.1, 150);
+            camera.position.z = 22;
+            camera.position.y = 60;
+            camera.rotation.x = -1.3;
+
+            renderer = new THREE.WebGLRenderer({
+                precision: "mediump"
+            });
+            renderer.setClearColor(new THREE.Color(0, 0, 0));
+            renderer.setPixelRatio(visibleSize.width / visibleSize.height);
+            renderer.setSize(visibleSize.width, visibleSize.height);
+
+            var ambientLight = new THREE.AmbientLight(new THREE.Color(1, 1, 1), 1.0);
+            scene.add(ambientLight);
+
+            var directionalLight = new THREE.DirectionalLight(new THREE.Color(1, 1, 0), 0.4);
+            directionalLight.position.set(0, 0, 1);
+            scene.add(directionalLight);
+
+            var grid = new THREE.GridHelper(50, 10, 0xffffff, 0xffffff);
+            grid.position.y = -1;
+            scene.add(grid);
+            $("#bar-section").append("<label id='bar-label-points'>0</label><img id='bar-imagenes' src='assets/clock.png'><label id='bar-label'>0:00</label><img id='bar-imagenes' src='assets/lifes.png'><label id='bar-label-life'>" +
+                systemGameLevel01.lifeCharacter[0] + "</label><input id='bar-musicVolume'type='range' min='0' max='1' step='0.01'><img id='bar-imagenes-menu' src='assets/menu.png'>");
+            $("#scene-section").append(renderer.domElement);
+            $("#bar-musicVolume").on("click", function() {
+                volumenGlobal = document.getElementById("bar-musicVolume").value;
+                $('#audioTheme').prop("volume", volumenGlobal);
+                console.log(volumenGlobal);
+            });
+            $("#bar-imagenes-menu").on("click", function() {
+                //$("#audioTheme")[0].play();
+                statusGameEnviroment = 0;
+                location.reload();
+            });
+
+            shadersWaterfunction();
+        }
+
+        function waterFunction() {
+            customUniforms2.time.value += deltaTime;
+
+            waterAnimation += .1;
+            var a = Math.sin(waterAnimation / 20) * 1;
+            waterObject.position.y = a + 2;
+            //console.log(a);
+            /*
+                        static float waterMov = 0;
+                        waterMov += .1;
+                        float A = sin(waterMov) * 20;*/
+
+        }
+
+        function shadersWaterfunction() {
+            var noiseTexture = new THREE.ImageUtils.loadTexture('assets/cloud.png');
+            noiseTexture.wrapS = noiseTexture.wrapT = THREE.RepeatWrapping;
+            var waterTexture = new THREE.ImageUtils.loadTexture('assets/water.jpg');
+            waterTexture.wrapS = waterTexture.wrapT = THREE.RepeatWrapping;
+
+            // use "this." to create global object
+            this.customUniforms2 = {
+                baseTexture: {
+                    type: "t",
+                    value: waterTexture
+                },
+                baseSpeed: {
+                    type: "f",
+                    value: 1.15
+                },
+                noiseTexture: {
+                    type: "t",
+                    value: noiseTexture
+                },
+                noiseScale: {
+                    type: "f",
+                    value: 0.2
+                },
+                alpha: {
+                    type: "f",
+                    value: 0.3
+                },
+                time: {
+                    type: "f",
+                    value: 1.0
+                }
+            };
+
+            // create custom material from the shader code above
+            //   that is within specially labeled script tags
+            var customMaterial2 = new THREE.ShaderMaterial({
+                uniforms: customUniforms2,
+                vertexShader: document.getElementById('vertexShader').textContent,
+                fragmentShader: document.getElementById('fragmentShader').textContent
+            });
+
+            // other material properties
+            customMaterial2.side = THREE.DoubleSide;
+            customMaterial2.transparent = true;
+
+            // apply the material to a surface
+            var flatGeometry = new THREE.PlaneGeometry(300, 300);
+            var surface = new THREE.Mesh(flatGeometry, customMaterial2);
+            surface.position.set(0, 2, 0);
+
+            //surface.rotation.x = 1.1;
+            surface.rotation.x = THREE.Math.degToRad(90);
+            waterObject = surface;
+            //console.log(surface);
+            scene.add(surface);
+        }
+
+        function models() {
+            if (statusGameEnviroment >= 1) {
+                loadOBJWithMTL("assets/", "personajePrinc01.obj", "personajePrinc01.mtl", (object) => {
+                    //object.position.z = 0;
+                    //object.position.y = 1;
+                    object.scale.x = 2;
+                    object.scale.y = 2;
+                    object.scale.z = 2;
+                    object.rayos = [
+                        new THREE.Vector3(0, 0, 1), //abajo
+                        new THREE.Vector3(0, 0, -1), //arriba
+                        new THREE.Vector3(1, 0, 0), //Lado derecha R
+                        new THREE.Vector3(-1, 0, 0) //Lado
+                    ]
+                    object.dataCharacter = {
+                        timeSpam: false,
+                        maxBomb: 3,
+                        actualBomb: 0
+                    }
+                    personaje1 = object;
+                    scene.add(personaje1);
+                    isWorldReady[0] = true;
+                });
+                if (statusGameEnviroment == 3) {
+                    loadOBJWithMTL("assets/", "personajePrinc01.obj", "personajePrinc01.mtl", (object) => {
+                        //object.position.z = 0;
+                        //object.position.y = 1;
+                        object.scale.x = 2;
+                        object.scale.y = 2;
+                        object.scale.z = 2;
+                        object.rayos = [
+                            new THREE.Vector3(0, 0, 1), //abajo
+                            new THREE.Vector3(0, 0, -1), //arriba
+                            new THREE.Vector3(1, 0, 0), //Lado derecha R
+                            new THREE.Vector3(-1, 0, 0) //Lado
+                        ]
+                        object.dataCharacter = {
+                            timeSpam: false,
+                            maxBomb: 3,
+                            actualBomb: 0
+                        }
+                        personaje2 = object;
+                        scene.add(personaje2);
+                        isWorldReady[0] = true;
+                    });
+                }
+                if (statusGameEnviroment == 1 || statusGameEnviroment == 3) {
+                    loadOBJWithMTL("assets/", "enemyAndlar.obj", "enemyAndlar.mtl", (object) => {
+                        //object.position.z = 0;
+                        object.position.y = 2;
+                        object.scale.x = 4;
+                        object.scale.y = 4;
+                        object.scale.z = 4;
+                        //object.rotation.y = THREE.Math.degToRad(180);
+                        object.userData = {
+                            type: true,
+                            destroy: false,
+                            typeOf: 1,
+                            directionCharacter: 0
+                        }
+                        for (var i = 0; i < enemys.Andlar; i++) {
+                            enemyAndlarCharacters[i] = object.clone();
+                            enemyAndlarCharacters[i].rayosEnemy = [
+                                new THREE.Vector3(0, 0, 1), //abajo
+                                new THREE.Vector3(0, 0, -1), //arriba
+                                new THREE.Vector3(1, 0, 0), //Lado derecha R
+                                new THREE.Vector3(-1, 0, 0) //Lado
+                            ]
+                            scenePilaresColision.push(enemyAndlarCharacters[i]);
+                            scene.add(enemyAndlarCharacters[i]);
+                        }
+                        enemysParamsInicials();
+                        //console.log(enemyAndlarCharacters);
+                        isWorldReady[0] = true;
+                    });
+                }
+                if (statusGameEnviroment == 2) {
+                    loadOBJWithMTL("assets/", "enemyAndlar.obj", "enemyAndlar.mtl", (object) => {
+                        //object.position.z = 0;
+                        object.position.y = 2;
+                        object.scale.x = 4;
+                        object.scale.y = 4;
+                        object.scale.z = 4;
+                        //object.rotation.y = THREE.Math.degToRad(180);
+                        object.userData = {
+                            type: true,
+                            destroy: false,
+                            typeOf: 1,
+                            directionCharacter: 0
+                        }
+                        enemys.Andlar = 5;
+                        enemys.totalEnemy = 5;
+                        for (var i = 0; i < enemys.Andlar; i++) {
+                            enemyAndlarCharacters[i] = object.clone();
+                            enemyAndlarCharacters[i].rayosEnemy = [
+                                new THREE.Vector3(0, 0, 1), //abajo
+                                new THREE.Vector3(0, 0, -1), //arriba
+                                new THREE.Vector3(1, 0, 0), //Lado derecha R
+                                new THREE.Vector3(-1, 0, 0) //Lado
+                            ]
+                            scenePilaresColision.push(enemyAndlarCharacters[i]);
+                            scene.add(enemyAndlarCharacters[i]);
+                        }
+                        enemysParamsInicialsLevel02();
+                        //console.log(enemyAndlarCharacters);
+                        isWorldReady[0] = true;
+                    });
+                }
+
+                loadOBJWithMTL("assets/", "exitDoorBase.obj", "exitDoorBase.mtl", (object) => {
+                    //object.position.z = 0;
+                    //object.position.y = 2;
+                    object.scale.x = 1;
+                    object.scale.y = 1;
+                    object.scale.z = 1;
+                    //object.rotation.y = THREE.Math.degToRad(180);
+
+                    portalLevel = object;
+                    portalLevelSetup();
+                    scene.add(portalLevel);
+                    isWorldReady[0] = true;
+                });
+
+                loadOBJWithMTL("assets/", "exitDoorClose.obj", "exitDoorClose.mtl", (object) => {
+                    //object.position.z = 0;
+                    //object.position.y = 2;
+                    object.scale.x = 1;
+                    object.scale.y = 1;
+                    object.scale.z = 1;
+                    object.userData = {
+                        type: false,
+                        destroy: false,
+                        typeOf: 2
+                    }
+
+                    portalLevelClose = object;
+                    scenePilaresColision.push(portalLevelClose);
+                    scene.add(portalLevelClose);
+                    isWorldReady[0] = true;
+                });
+
+                loadOBJWithMTL("assets/", "exitDoorOpen.obj", "exitDoorOpen.mtl", (object) => {
+                    //object.position.z = 0;
+                    //object.position.y = 2;
+                    object.scale.x = 1;
+                    object.scale.y = 1;
+                    object.scale.z = 1;
+                    object.userData = {
+                        type: false,
+                        destroy: false,
+                        typeOf: 2
+                    }
+
+                    portalLevelOpen = object;
+                    scenePilaresColision.push(portalLevelOpen);
+                    scene.add(portalLevelOpen);
+                    isWorldReady[0] = true;
+                });
+
+                loadOBJWithMTL("assets/", "itemBombN.obj", "itemBombN.mtl", (object) => {
+                    //object.position.z = 0;
+                    //object.position.y = 1;
+                    object.scale.x = 3;
+                    object.scale.y = 3;
+                    object.scale.z = 3;
+
+                    object.userData = {
+                        MovX: 0,
+                        MovY: 0,
+                        MovZ: 0,
+                        animationBomb: false,
+                        actualBomb: false
+                    }
+
+                    for (var i = 0; i < 3; i++) {
+                        bombsCharacter1[i] = object.clone();
+                        bombsCharacter1[i].rayosBomb = [
+                            new THREE.Vector3(0, 0, 1), //abajo
+                            new THREE.Vector3(0, 0, -1), //arriba
+                            new THREE.Vector3(1, 0, 0), //Lado derecha R
+                            new THREE.Vector3(-1, 0, 0) //Lado
+                        ]
+                        bombsCharacter1[i].position.y = -10;
+                        scene.add(bombsCharacter1[i]);
+                    }
+                    //console.log(bombsCharacter1);
+                    isWorldReady[0] = true;
+
+                });
+
+                loadOBJWithMTL("assets/", "resourceFire.obj", "resourceFire.mtl", (object) => {
+                    //object.position.z = 0;
+                    //object.position.y = 1;
+                    object.scale.x = 3;
+                    object.scale.y = 3;
+                    object.scale.z = 3;
+                    object.userData = {
+                        MovX: 0,
+                        MovY: 0,
+                        MovZ: 0,
+                        animationFire: false,
+                        actualFire: false
+                    }
+
+                    for (var i = 0; i < 5; i++) {
+                        flamesCharacter1[i] = object.clone();
+                        flamesCharacter1[i].position.y = -10;
+                        scene.add(flamesCharacter1[i]);
+                    }
+                    //scene.add(object);
+                    isWorldReady[0] = true;
+                });
+
+                if (statusGameEnviroment == 3) {
+                    debugger;
+                    loadOBJWithMTL("assets/", "itemBombN.obj", "itemBombN.mtl", (object) => {
+                        //object.position.z = 0;
+                        //object.position.y = 1;
+                        object.scale.x = 3;
+                        object.scale.y = 3;
+                        object.scale.z = 3;
+
+                        object.userData = {
+                            MovX: 0,
+                            MovY: 0,
+                            MovZ: 0,
+                            animationBomb: false,
+                            actualBomb: false
+                        }
+
+                        for (var i = 0; i < 3; i++) {
+                            bombsCharacter2[i] = object.clone();
+                            bombsCharacter2[i].rayosBomb = [
+                                new THREE.Vector3(0, 0, 1), //abajo
+                                new THREE.Vector3(0, 0, -1), //arriba
+                                new THREE.Vector3(1, 0, 0), //Lado derecha R
+                                new THREE.Vector3(-1, 0, 0) //Lado
+                            ]
+                            bombsCharacter2[i].position.y = -10;
+                            scene.add(bombsCharacter2[i]);
+                        }
+                        //console.log(bombsCharacter2);
+                        isWorldReady[0] = true;
+
+                    });
+
+                    loadOBJWithMTL("assets/", "resourceFire.obj", "resourceFire.mtl", (object) => {
+                        //object.position.z = 0;
+                        //object.position.y = 1;
+                        object.scale.x = 3;
+                        object.scale.y = 3;
+                        object.scale.z = 3;
+                        object.userData = {
+                            MovX: 0,
+                            MovY: 0,
+                            MovZ: 0,
+                            animationFire: false,
+                            actualFire: false
+                        }
+
+                        for (var i = 0; i < 5; i++) {
+                            flamesCharacter2[i] = object.clone();
+                            flamesCharacter2[i].position.y = -10;
+                            scene.add(flamesCharacter2[i]);
+                        }
+                        //scene.add(object);
+                        isWorldReady[0] = true;
+                    });
+                }
+
+                //Origen x-42, z-37, y2
+                //Bloqueas destruibles
+                loadOBJWithMTL("assets/", "sceneBlock.obj", "sceneBlock.mtl", (object) => {
+                    //object.position.z = 0;
+                    object.position.y = 2;
+                    object.position.x = 0;
+                    object.position.z = -37;
+                    object.scale.x = 3.0;
+                    object.scale.y = 3.0;
+                    object.scale.z = 3.0;
+                    object.userData = {
+                            type: true,
+                            destroy: false,
+                            typeOf: 0
+                        }
+                        //Columna1
+                    var worldBlock01 = object.clone();
+                    worldBlock01.position.z = -9;
+                    worldBlock01.position.x = -42;
+
+                    var worldBlock02 = object.clone();
+                    worldBlock02.position.z = -2;
+                    worldBlock02.position.x = -42;
+
+                    var worldBlock03 = object.clone();
+                    worldBlock03.position.z = 5;
+                    worldBlock03.position.x = -42;
+
+                    var worldBlock04 = object.clone();
+                    worldBlock04.position.z = 19;
+                    worldBlock04.position.x = -42;
+
+                    //Columna2
+                    var worldBlock05 = object.clone();
+                    worldBlock05.position.z = -23;
+                    worldBlock05.position.x = -35;
+
+                    var worldBlock06 = object.clone();
+                    worldBlock06.position.z = 5;
+                    worldBlock06.position.x = -35;
+
+                    var worldBlock07 = object.clone();
+                    worldBlock07.position.z = 19;
+                    worldBlock07.position.x = -35;
+
+                    //Columna3
+                    var worldBlock08 = object.clone();
+                    worldBlock08.position.z = -30;
+                    worldBlock08.position.x = -28;
+
+                    var worldBlock09 = object.clone();
+                    worldBlock09.position.z = 26;
+                    worldBlock09.position.x = -28;
+
+                    //Columna4
+                    var worldBlock10 = object.clone();
+                    worldBlock10.position.z = -23;
+                    worldBlock10.position.x = -21;
+
+                    var worldBlock11 = object.clone();
+                    worldBlock11.position.z = -9;
+                    worldBlock11.position.x = -21;
+
+                    var worldBlock12 = object.clone();
+                    worldBlock12.position.z = 5;
+                    worldBlock12.position.x = -21;
+
+                    var worldBlock13 = object.clone();
+                    worldBlock13.position.z = 19;
+                    worldBlock13.position.x = -21;
+
+                    //Columna5
+                    var worldBlock14 = object.clone();
+                    worldBlock14.position.z = -30;
+                    worldBlock14.position.x = -14;
+
+                    var worldBlock15 = object.clone();
+                    worldBlock15.position.z = -23;
+                    worldBlock15.position.x = -14;
+
+                    var worldBlock16 = object.clone();
+                    worldBlock16.position.z = -16;
+                    worldBlock16.position.x = -14;
+
+                    var worldBlock17 = object.clone();
+                    worldBlock17.position.z = -9;
+                    worldBlock17.position.x = -14;
+
+                    var worldBlock18 = object.clone();
+                    worldBlock18.position.z = -2;
+                    worldBlock18.position.x = -14;
+
+                    var worldBlock19 = object.clone();
+                    worldBlock19.position.z = 5;
+                    worldBlock19.position.x = -14;
+
+                    var worldBlock20 = object.clone();
+                    worldBlock20.position.z = 12;
+                    worldBlock20.position.x = -14;
+
+                    var worldBlock21 = object.clone();
+                    worldBlock21.position.z = 19;
+                    worldBlock21.position.x = -14;
+
+                    var worldBlock22 = object.clone();
+                    worldBlock22.position.z = 26;
+                    worldBlock22.position.x = -14;
+
+                    //Columna 6
+                    var worldBlock23 = object.clone();
+                    worldBlock23.position.z = -23;
+                    worldBlock23.position.x = -7;
+
+                    //Columna 7
+                    var worldBlock24 = object.clone();
+                    worldBlock24.position.z = -23;
+                    worldBlock24.position.x = 0;
+
+                    var worldBlock25 = object.clone();
+                    worldBlock25.position.z = 26;
+                    worldBlock25.position.x = 0;
+
+                    var worldBlock26 = object.clone();
+                    worldBlock26.position.z = 33;
+                    worldBlock26.position.x = 0;
+
+                    //Columna 8
+                    var worldBlock27 = object.clone();
+                    worldBlock27.position.z = -23;
+                    worldBlock27.position.x = 7;
+
+                    //Columna 9
+                    var worldBlock28 = object.clone();
+                    worldBlock28.position.z = -23;
+                    worldBlock28.position.x = 14;
+
+                    var worldBlock29 = object.clone();
+                    worldBlock29.position.z = -16;
+                    worldBlock29.position.x = 14;
+
+                    var worldBlock30 = object.clone();
+                    worldBlock30.position.z = -9;
+                    worldBlock30.position.x = 14;
+
+                    var worldBlock31 = object.clone();
+                    worldBlock31.position.z = -2;
+                    worldBlock31.position.x = 14;
+
+                    var worldBlock32 = object.clone();
+                    worldBlock32.position.z = 5;
+                    worldBlock32.position.x = 14;
+
+                    var worldBlock33 = object.clone();
+                    worldBlock33.position.z = 12;
+                    worldBlock33.position.x = 14;
+
+                    var worldBlock34 = object.clone();
+                    worldBlock34.position.z = 19;
+                    worldBlock34.position.x = 14;
+
+                    //Columna 10
+                    var worldBlock35 = object.clone();
+                    worldBlock35.position.z = -23;
+                    worldBlock35.position.x = 21;
+
+                    var worldBlock36 = object.clone();
+                    worldBlock36.position.z = -9;
+                    worldBlock36.position.x = 21;
+
+                    var worldBlock37 = object.clone();
+                    worldBlock37.position.z = 5;
+                    worldBlock37.position.x = 21;
+
+                    var worldBlock38 = object.clone();
+                    worldBlock38.position.z = 19;
+                    worldBlock38.position.x = 21;
+
+                    //Columna 11
+                    var worldBlock39 = object.clone();
+                    worldBlock39.position.z = -16;
+                    worldBlock39.position.x = 28;
+
+                    var worldBlock40 = object.clone();
+                    worldBlock40.position.z = -9;
+                    worldBlock40.position.x = 28;
+
+                    var worldBlock41 = object.clone();
+                    worldBlock41.position.z = -2;
+                    worldBlock41.position.x = 28;
+
+                    var worldBlock42 = object.clone();
+                    worldBlock42.position.z = 5;
+                    worldBlock42.position.x = 28;
+
+                    var worldBlock43 = object.clone();
+                    worldBlock43.position.z = 12;
+                    worldBlock43.position.x = 28;
+
+                    var worldBlock44 = object.clone();
+                    worldBlock44.position.z = 26;
+                    worldBlock44.position.x = 28;
+
+                    //Columna 12
+                    var worldBlock45 = object.clone();
+                    worldBlock45.position.z = -23;
+                    worldBlock45.position.x = 35;
+
+                    var worldBlock46 = object.clone();
+                    worldBlock46.position.z = -9;
+                    worldBlock46.position.x = 35;
+
+                    var worldBlock47 = object.clone();
+                    worldBlock47.position.z = 5;
+                    worldBlock47.position.x = 35;
+
+                    var worldBlock48 = object.clone();
+                    worldBlock48.position.z = 19;
+                    worldBlock48.position.x = 35;
+
+                    //Columna 13
+                    var worldBlock49 = object.clone();
+                    worldBlock49.position.z = -23;
+                    worldBlock49.position.x = 42;
+
+                    var worldBlock50 = object.clone();
+                    worldBlock50.position.z = -16;
+                    worldBlock50.position.x = 42;
+
+                    var worldBlock51 = object.clone();
+                    worldBlock51.position.z = -2;
+                    worldBlock51.position.x = 42;
+
+                    var worldBlock52 = object.clone();
+                    worldBlock52.position.z = 12;
+                    worldBlock52.position.x = 42;
+
+                    var worldBlock53 = object.clone();
+                    worldBlock53.position.z = 19;
+                    worldBlock53.position.x = 42;
+
+                    scenePilaresColision.push(object);
+                    scenePilaresColision.push(worldBlock01);
+                    scenePilaresColision.push(worldBlock02);
+                    scenePilaresColision.push(worldBlock03);
+                    scenePilaresColision.push(worldBlock04);
+                    scenePilaresColision.push(worldBlock05);
+                    scenePilaresColision.push(worldBlock06);
+                    scenePilaresColision.push(worldBlock07);
+                    scenePilaresColision.push(worldBlock08);
+                    scenePilaresColision.push(worldBlock09);
+                    scenePilaresColision.push(worldBlock10);
+                    scenePilaresColision.push(worldBlock11);
+                    scenePilaresColision.push(worldBlock12);
+                    scenePilaresColision.push(worldBlock13);
+                    scenePilaresColision.push(worldBlock14);
+                    scenePilaresColision.push(worldBlock15);
+                    scenePilaresColision.push(worldBlock16);
+                    scenePilaresColision.push(worldBlock17);
+                    scenePilaresColision.push(worldBlock18);
+                    scenePilaresColision.push(worldBlock19);
+                    scenePilaresColision.push(worldBlock20);
+                    scenePilaresColision.push(worldBlock21);
+                    scenePilaresColision.push(worldBlock22);
+                    scenePilaresColision.push(worldBlock23);
+                    scenePilaresColision.push(worldBlock24);
+                    scenePilaresColision.push(worldBlock25);
+                    scenePilaresColision.push(worldBlock26);
+                    scenePilaresColision.push(worldBlock27);
+                    scenePilaresColision.push(worldBlock28);
+                    scenePilaresColision.push(worldBlock29);
+                    scenePilaresColision.push(worldBlock30);
+                    scenePilaresColision.push(worldBlock31);
+                    scenePilaresColision.push(worldBlock32);
+                    scenePilaresColision.push(worldBlock33);
+                    scenePilaresColision.push(worldBlock34);
+                    scenePilaresColision.push(worldBlock35);
+                    scenePilaresColision.push(worldBlock36);
+                    scenePilaresColision.push(worldBlock37);
+                    scenePilaresColision.push(worldBlock38);
+                    scenePilaresColision.push(worldBlock39);
+                    scenePilaresColision.push(worldBlock40);
+                    scenePilaresColision.push(worldBlock41);
+                    scenePilaresColision.push(worldBlock42);
+                    scenePilaresColision.push(worldBlock43);
+                    scenePilaresColision.push(worldBlock44);
+                    scenePilaresColision.push(worldBlock45);
+                    scenePilaresColision.push(worldBlock46);
+                    scenePilaresColision.push(worldBlock47);
+                    scenePilaresColision.push(worldBlock48);
+                    scenePilaresColision.push(worldBlock49);
+                    scenePilaresColision.push(worldBlock50);
+                    scenePilaresColision.push(worldBlock51);
+                    scenePilaresColision.push(worldBlock52);
+                    scenePilaresColision.push(worldBlock53);
+                    //console.log(scenePilaresColision);
+                    scene.add(object);
+                    scene.add(worldBlock01);
+                    scene.add(worldBlock02);
+                    scene.add(worldBlock03);
+                    scene.add(worldBlock04);
+                    scene.add(worldBlock05);
+                    scene.add(worldBlock06);
+                    scene.add(worldBlock07);
+                    scene.add(worldBlock08);
+                    scene.add(worldBlock09);
+                    scene.add(worldBlock10);
+                    scene.add(worldBlock11);
+                    scene.add(worldBlock12);
+                    scene.add(worldBlock13);
+                    scene.add(worldBlock14);
+                    scene.add(worldBlock15);
+                    scene.add(worldBlock16);
+                    scene.add(worldBlock17);
+                    scene.add(worldBlock18);
+                    scene.add(worldBlock19);
+                    scene.add(worldBlock20);
+                    scene.add(worldBlock21);
+                    scene.add(worldBlock22);
+                    scene.add(worldBlock23);
+                    scene.add(worldBlock24);
+                    scene.add(worldBlock25);
+                    scene.add(worldBlock26);
+                    scene.add(worldBlock27);
+                    scene.add(worldBlock28);
+                    scene.add(worldBlock29);
+                    scene.add(worldBlock30);
+                    scene.add(worldBlock31);
+                    scene.add(worldBlock32);
+                    scene.add(worldBlock33);
+                    scene.add(worldBlock34);
+                    scene.add(worldBlock35);
+                    scene.add(worldBlock36);
+                    scene.add(worldBlock37);
+                    scene.add(worldBlock38);
+                    scene.add(worldBlock39);
+                    scene.add(worldBlock40);
+                    scene.add(worldBlock41);
+                    scene.add(worldBlock42);
+                    scene.add(worldBlock43);
+                    scene.add(worldBlock44);
+                    scene.add(worldBlock45);
+                    scene.add(worldBlock46);
+                    scene.add(worldBlock47);
+                    scene.add(worldBlock48);
+                    scene.add(worldBlock49);
+                    scene.add(worldBlock50);
+                    scene.add(worldBlock51);
+                    scene.add(worldBlock52);
+                    scene.add(worldBlock53);
+                    isWorldReady[0] = true;
+                });
+
+                //Bloques permanentes dentro del mapa
+                loadOBJWithMTL("assets/", "sceneSpecialBlock.obj", "sceneSpecialBlock.mtl", (object) => {
+                    object.position.x = -35;
+                    object.position.z = -30;
+                    object.position.y = 2;
+                    object.scale.x = 3.0;
+                    object.scale.y = 3.0;
+                    object.scale.z = 3.0;
+                    object.userData = {
+                            type: false,
+                            destroy: false,
+                            typeOf: 0
+                        }
+                        //1 fila
+                    var worldPilar01 = object.clone();
+                    worldPilar01.position.x = -21;
+
+                    var worldPilar02 = object.clone();
+                    worldPilar02.position.x = -7;
+
+                    var worldPilar03 = object.clone();
+                    worldPilar03.position.x = 7;
+
+                    var worldPilar04 = object.clone();
+                    worldPilar04.position.x = 21;
+
+                    var worldPilar05 = object.clone();
+                    worldPilar05.position.x = 35;
+
+                    //2 fila
+                    var worldPilar06 = object.clone();
+                    worldPilar06.position.x = -21;
+                    worldPilar06.position.z = -16;
+
+                    var worldPilar07 = object.clone();
+                    worldPilar07.position.x = -7;
+                    worldPilar07.position.z = -16;
+
+                    var worldPilar08 = object.clone();
+                    worldPilar08.position.x = 7;
+                    worldPilar08.position.z = -16;
+
+                    var worldPilar09 = object.clone();
+                    worldPilar09.position.x = 21;
+                    worldPilar09.position.z = -16;
+
+                    var worldPilar10 = object.clone();
+                    worldPilar10.position.x = 35;
+                    worldPilar10.position.z = -16;
+
+                    var worldPilar11 = object.clone();
+                    worldPilar11.position.x = -35;
+                    worldPilar11.position.z = -16;
+
+                    //3 fila
+                    var worldPilar12 = object.clone();
+                    worldPilar12.position.x = -35;
+                    worldPilar12.position.z = -2;
+
+                    var worldPilar13 = object.clone();
+                    worldPilar13.position.x = -7;
+                    worldPilar13.position.z = -2;
+
+                    var worldPilar14 = object.clone();
+                    worldPilar14.position.x = 7;
+                    worldPilar14.position.z = -2;
+
+                    var worldPilar15 = object.clone();
+                    worldPilar15.position.x = 21;
+                    worldPilar15.position.z = -2;
+
+                    var worldPilar16 = object.clone();
+                    worldPilar16.position.x = 35;
+                    worldPilar16.position.z = -2;
+
+                    var worldPilar17 = object.clone();
+                    worldPilar17.position.x = -21;
+                    worldPilar17.position.z = -2;
+
+                    //4 fila
+                    var worldPilar18 = object.clone();
+                    worldPilar18.position.x = -35;
+                    worldPilar18.position.z = 12;
+
+                    var worldPilar19 = object.clone();
+                    worldPilar19.position.x = -7;
+                    worldPilar19.position.z = 12;
+
+                    var worldPilar20 = object.clone();
+                    worldPilar20.position.x = 7;
+                    worldPilar20.position.z = 12;
+
+                    var worldPilar21 = object.clone();
+                    worldPilar21.position.x = 21;
+                    worldPilar21.position.z = 12;
+
+                    var worldPilar22 = object.clone();
+                    worldPilar22.position.x = 35;
+                    worldPilar22.position.z = 12;
+
+                    var worldPilar23 = object.clone();
+                    worldPilar23.position.x = -21;
+                    worldPilar23.position.z = 12;
+
+                    //5 fila
+                    var worldPilar24 = object.clone();
+                    worldPilar24.position.x = -35;
+                    worldPilar24.position.z = 26;
+
+                    var worldPilar25 = object.clone();
+                    worldPilar25.position.x = -7;
+                    worldPilar25.position.z = 26;
+
+                    var worldPilar26 = object.clone();
+                    worldPilar26.position.x = 7;
+                    worldPilar26.position.z = 26;
+
+                    var worldPilar27 = object.clone();
+                    worldPilar27.position.x = 21;
+                    worldPilar27.position.z = 26;
+
+                    var worldPilar28 = object.clone();
+                    worldPilar28.position.x = 35;
+                    worldPilar28.position.z = 26;
+
+                    var worldPilar29 = object.clone();
+                    worldPilar29.position.x = -21;
+                    worldPilar29.position.z = 26;
+
+
+                    scenePilaresColision.push(object);
+                    scenePilaresColision.push(worldPilar01);
+                    scenePilaresColision.push(worldPilar02);
+                    scenePilaresColision.push(worldPilar03);
+                    scenePilaresColision.push(worldPilar04);
+                    scenePilaresColision.push(worldPilar05);
+                    scenePilaresColision.push(worldPilar06);
+                    scenePilaresColision.push(worldPilar07);
+                    scenePilaresColision.push(worldPilar08);
+                    scenePilaresColision.push(worldPilar09);
+                    scenePilaresColision.push(worldPilar10);
+                    scenePilaresColision.push(worldPilar11);
+                    scenePilaresColision.push(worldPilar12);
+                    scenePilaresColision.push(worldPilar13);
+                    scenePilaresColision.push(worldPilar14);
+                    scenePilaresColision.push(worldPilar15);
+                    scenePilaresColision.push(worldPilar16);
+                    scenePilaresColision.push(worldPilar17);
+                    scenePilaresColision.push(worldPilar18);
+                    scenePilaresColision.push(worldPilar19);
+                    scenePilaresColision.push(worldPilar20);
+                    scenePilaresColision.push(worldPilar21);
+                    scenePilaresColision.push(worldPilar22);
+                    scenePilaresColision.push(worldPilar23);
+                    scenePilaresColision.push(worldPilar24);
+                    scenePilaresColision.push(worldPilar25);
+                    scenePilaresColision.push(worldPilar26);
+                    scenePilaresColision.push(worldPilar27);
+                    scenePilaresColision.push(worldPilar28);
+                    scenePilaresColision.push(worldPilar29);
+                    scene.add(object);
+                    scene.add(worldPilar01);
+                    scene.add(worldPilar02);
+                    scene.add(worldPilar03);
+                    scene.add(worldPilar04);
+                    scene.add(worldPilar05);
+                    scene.add(worldPilar06);
+                    scene.add(worldPilar07);
+                    scene.add(worldPilar08);
+                    scene.add(worldPilar09);
+                    scene.add(worldPilar10);
+                    scene.add(worldPilar11);
+                    scene.add(worldPilar12);
+                    scene.add(worldPilar13);
+                    scene.add(worldPilar14);
+                    scene.add(worldPilar15);
+                    scene.add(worldPilar16);
+                    scene.add(worldPilar17);
+                    scene.add(worldPilar18);
+                    scene.add(worldPilar19);
+                    scene.add(worldPilar20);
+                    scene.add(worldPilar21);
+                    scene.add(worldPilar22);
+                    scene.add(worldPilar23);
+                    scene.add(worldPilar24);
+                    scene.add(worldPilar25);
+                    scene.add(worldPilar26);
+                    scene.add(worldPilar27);
+                    scene.add(worldPilar28);
+                    scene.add(worldPilar29);
+                    isWorldReady[0] = true;
+                });
+
+                //Bloques permanentes alrededor (espinas)
+                loadOBJWithMTL("assets/", "sceneDBlock.obj", "sceneDBlock.mtl", (object) => {
+                    object.userData = {
+                        type: false,
+                        destroy: false,
+                        typeOf: 0
+                    }
+
+                    object.position.z = 40;
+                    object.position.y = 2;
+                    object.position.x = 7;
+                    object.scale.x = 3.0;
+                    object.scale.y = 3.0;
+                    object.scale.z = 3.0;
+
+
+                    //Parte de abajo
+                    var spike2 = object.clone();
+                    spike2.position.x = 0
+
+                    var spike3 = object.clone();
+                    spike3.position.x = -7;
+
+                    var spike4 = object.clone();
+                    spike4.position.x = -14;
+
+                    var spike5 = object.clone();
+                    spike5.position.x = 14;
+
+                    var spike6 = object.clone();
+                    spike6.position.x = -21;
+
+                    var spike7 = object.clone();
+                    spike7.position.x = 21;
+
+                    var spike8 = object.clone();
+                    spike8.position.x = -28;
+
+                    var spike9 = object.clone();
+                    spike9.position.x = 28;
+
+                    var spike10 = object.clone();
+                    spike10.position.x = -35;
+
+                    var spike11 = object.clone();
+                    spike11.position.x = 35;
+
+                    var spike12 = object.clone();
+                    spike12.position.x = -42;
+
+                    var spike13 = object.clone();
+                    spike13.position.x = 42;
+
+                    var spike14 = object.clone();
+                    spike14.position.x = -49;
+
+                    var spike15 = object.clone();
+                    spike15.position.x = 49;
+
+                    //Lado derecha
+                    var spike16 = object.clone();
+                    spike16.position.x = 49;
+                    spike16.position.z = 33;
+
+                    var spike17 = object.clone();
+                    spike17.position.x = 49;
+                    spike17.position.z = 26;
+
+                    var spike18 = object.clone();
+                    spike18.position.x = 49;
+                    spike18.position.z = 19;
+
+                    var spike19 = object.clone();
+                    spike19.position.x = 49;
+                    spike19.position.z = 12;
+
+                    var spike20 = object.clone();
+                    spike20.position.x = 49;
+                    spike20.position.z = 5;
+
+                    var spike21 = object.clone();
+                    spike21.position.x = 49;
+                    spike21.position.z = -2;
+
+                    var spike22 = object.clone();
+                    spike22.position.x = 49;
+                    spike22.position.z = -9;
+
+                    var spike23 = object.clone();
+                    spike23.position.x = 49;
+                    spike23.position.z = -16;
+
+                    var spike24 = object.clone();
+                    spike24.position.x = 49;
+                    spike24.position.z = -23;
+
+                    var spike25 = object.clone();
+                    spike25.position.x = 49;
+                    spike25.position.z = -30;
+
+                    var spike26 = object.clone();
+                    spike26.position.x = 49;
+                    spike26.position.z = -37;
+
+                    var spike27 = object.clone();
+                    spike27.position.x = 49;
+                    spike27.position.z = -44;
+
+                    //Lado Izq
+                    var spike28 = object.clone();
+                    spike28.position.x = -49;
+                    spike28.position.z = 33;
+
+                    var spike29 = object.clone();
+                    spike29.position.x = -49;
+                    spike29.position.z = 26;
+
+                    var spike30 = object.clone();
+                    spike30.position.x = -49;
+                    spike30.position.z = 19;
+
+                    var spike31 = object.clone();
+                    spike31.position.x = -49;
+                    spike31.position.z = 12;
+
+                    var spike32 = object.clone();
+                    spike32.position.x = -49;
+                    spike32.position.z = 5;
+
+                    var spike33 = object.clone();
+                    spike33.position.x = -49;
+                    spike33.position.z = -2;
+
+                    var spike34 = object.clone();
+                    spike34.position.x = -49;
+                    spike34.position.z = -9;
+
+                    var spike35 = object.clone();
+                    spike35.position.x = -49;
+                    spike35.position.z = -16;
+
+                    var spike36 = object.clone();
+                    spike36.position.x = -49;
+                    spike36.position.z = -23;
+
+                    var spike37 = object.clone();
+                    spike37.position.x = -49;
+                    spike37.position.z = -30;
+
+                    var spike38 = object.clone();
+                    spike38.position.x = -49;
+                    spike38.position.z = -37;
+
+                    var spike39 = object.clone();
+                    spike39.position.x = -49;
+                    spike39.position.z = -44;
+
+                    //Lado arriba
+                    var spike40 = object.clone();
+                    spike40.position.x = 0
+                    spike40.position.z = -44;
+
+                    var spike41 = object.clone();
+                    spike41.position.x = -7;
+                    spike41.position.z = -44;
+
+                    var spike42 = object.clone();
+                    spike42.position.x = -14;
+                    spike42.position.z = -44;
+
+                    var spike43 = object.clone();
+                    spike43.position.x = 14;
+                    spike43.position.z = -44;
+
+                    var spike44 = object.clone();
+                    spike44.position.x = -21;
+                    spike44.position.z = -44;
+
+                    var spike45 = object.clone();
+                    spike45.position.x = 21;
+                    spike45.position.z = -44;
+
+                    var spike46 = object.clone();
+                    spike46.position.x = -28;
+                    spike46.position.z = -44;
+
+                    var spike47 = object.clone();
+                    spike47.position.x = 28;
+                    spike47.position.z = -44;
+
+                    var spike48 = object.clone();
+                    spike48.position.x = -35;
+                    spike48.position.z = -44;
+
+                    var spike49 = object.clone();
+                    spike49.position.x = 35;
+                    spike49.position.z = -44;
+
+                    var spike50 = object.clone();
+                    spike50.position.x = -42;
+                    spike50.position.z = -44;
+
+                    var spike51 = object.clone();
+                    spike51.position.x = 42;
+                    spike51.position.z = -44;
+
+                    var spike52 = object.clone();
+                    spike52.position.x = 7;
+                    spike52.position.z = -44;
+
+                    /*
+                    var spike52 = object.clone();
+                    spike14.position.x = -49;
+
+                    var spike53 = object.clone();
+                    spike15.position.x = 49;*/
+
+                    //Lado abajo
+                    scene.add(spike2);
+                    scenePilaresColision.push(spike2);
+                    scene.add(spike3);
+                    scenePilaresColision.push(spike3);
+                    scene.add(spike4);
+                    scenePilaresColision.push(spike4);
+                    scene.add(spike5);
+                    scenePilaresColision.push(spike5);
+                    scene.add(spike6);
+                    scenePilaresColision.push(spike6);
+                    scene.add(spike7);
+                    scenePilaresColision.push(spike7);
+                    scene.add(spike8);
+                    scenePilaresColision.push(spike8);
+                    scene.add(spike9);
+                    scenePilaresColision.push(spike9);
+                    scene.add(spike10);
+                    scenePilaresColision.push(spike10);
+                    scene.add(spike11);
+                    scenePilaresColision.push(spike11);
+                    scene.add(spike12);
+                    scenePilaresColision.push(spike12);
+                    scene.add(spike13);
+                    scenePilaresColision.push(spike13);
+                    scene.add(spike14);
+                    scenePilaresColision.push(spike14);
+                    scene.add(spike15);
+                    scenePilaresColision.push(spike15);
+                    //Lado derecha
+                    scene.add(spike16);
+                    scenePilaresColision.push(spike16);
+                    scene.add(spike17);
+                    scenePilaresColision.push(spike17);
+                    scene.add(spike18);
+                    scenePilaresColision.push(spike18);
+                    scene.add(spike19);
+                    scenePilaresColision.push(spike19);
+                    scene.add(spike20);
+                    scenePilaresColision.push(spike20);
+                    scene.add(spike21);
+                    scenePilaresColision.push(spike21);
+                    scene.add(spike22);
+                    scenePilaresColision.push(spike22);
+                    scene.add(spike23);
+                    scenePilaresColision.push(spike23);
+                    scene.add(spike24);
+                    scenePilaresColision.push(spike24);
+                    scene.add(spike25);
+                    scenePilaresColision.push(spike25);
+                    scene.add(spike26);
+                    scenePilaresColision.push(spike26);
+                    scene.add(spike27);
+                    scenePilaresColision.push(spike27);
+                    //Lado izq
+                    scene.add(spike28);
+                    scenePilaresColision.push(spike28);
+                    scene.add(spike29);
+                    scenePilaresColision.push(spike29);
+                    scene.add(spike30);
+                    scenePilaresColision.push(spike30);
+                    scene.add(spike31);
+                    scenePilaresColision.push(spike31);
+                    scene.add(spike32);
+                    scenePilaresColision.push(spike32);
+                    scene.add(spike33);
+                    scenePilaresColision.push(spike33);
+                    scene.add(spike34);
+                    scenePilaresColision.push(spike34);
+                    scene.add(spike35);
+                    scenePilaresColision.push(spike35);
+                    scene.add(spike36);
+                    scenePilaresColision.push(spike36);
+                    scene.add(spike37);
+                    scenePilaresColision.push(spike37);
+                    scene.add(spike38);
+                    scenePilaresColision.push(spike38);
+                    scene.add(spike39);
+                    scenePilaresColision.push(spike39);
+                    //Lado arriba
+                    scene.add(spike40);
+                    scenePilaresColision.push(spike40);
+                    scene.add(spike41);
+                    scenePilaresColision.push(spike41);
+                    scene.add(spike42);
+                    scenePilaresColision.push(spike42);
+                    scene.add(spike43);
+                    scenePilaresColision.push(spike43);
+                    scene.add(spike44);
+                    scenePilaresColision.push(spike44);
+                    scene.add(spike45);
+                    scenePilaresColision.push(spike45);
+                    scene.add(spike46);
+                    scenePilaresColision.push(spike46);
+                    scene.add(spike47);
+                    scenePilaresColision.push(spike47);
+                    scene.add(spike48);
+                    scenePilaresColision.push(spike48);
+                    scene.add(spike49);
+                    scenePilaresColision.push(spike49);
+                    scene.add(spike50);
+                    scenePilaresColision.push(spike50);
+                    scene.add(spike51);
+                    scenePilaresColision.push(spike51);
+                    //Alma impostora
+                    scene.add(spike52);
+                    scenePilaresColision.push(spike52);
+                    //Alma
+                    scene.add(object);
+                    scenePilaresColision.push(object);
+                    isWorldReady[1] = true;
+                });
+
+                loadOBJWithMTL("assets/", "sceneMap.obj", "sceneMap.mtl", (object) => {
+                    object.position.z = 0;
+                    object.scale.x = 4;
+                    object.scale.y = 4;
+                    object.scale.z = 4;
+
+                    scene.add(object);
+                });
+                //Aqui termina models();
+            }
+
+        }
+
+        function updateCharacter1() {
+            personaje1.position.z = movimientoPersonaje1.MovZ;
+            personaje1.position.x = movimientoPersonaje1.MovX;
+            personaje1.position.y = movimientoPersonaje1.MovY;
+        }
+
+        function updateCharacter2() {
+            personaje2.position.z = movimientoPersonaje2.MovZ;
+            personaje2.position.x = movimientoPersonaje2.MovX;
+            personaje2.position.y = movimientoPersonaje2.MovY;
+        }
+
+        function paramsIniticials() {
+            movimientoPersonaje1.MovX = -43;
+            movimientoPersonaje1.MovY = 2;
+            movimientoPersonaje1.MovZ = -38;
+            $("#bar-label-life").text(systemGameLevel01.lifeCharacter[0]);
+        }
+
+        function paramsIniticials2() {
+            movimientoPersonaje2.MovX = 42;
+            movimientoPersonaje2.MovY = 2;
+            movimientoPersonaje2.MovZ = 32;
+            $("#bar-label-life").text(systemGameLevel01.lifeCharacter[0]);
+        }
+
+        function colisionWorldPilar() {
+            /*
+            //Leer la info de todos los rayos, de ahi simple activar algo sin importar de que direccion proviene (No importa de donde lo toque)
+            for (var i = 0; i < personaje1.rayos.length; i++) {
+                var rayo = personaje1.rayos[i];
+                rayCaster.set(personaje1.position, rayo);
+                var colisiones = rayCaster.intersectObjects(scenePilaresColision, true);
+                //console.log(colisiones);
+                if (colisiones.length > 0 && colisiones[0].distance < 5) {
+                    console.log("Ando colisionando" + scenePilaresColision[0]);
+                    //colisiones[0].object.parent.userData.colisionando = true;
+                }
+            }*/
+            //Importa de que direccion 0=abajo, 1=Arriba, 2=Derecha, 3=Izq
+            rayCaster.set(personaje1.position, personaje1.rayos[0]);
+            var colision00 = rayCaster.intersectObjects(scenePilaresColision, true);
+            if (colision00.length > 0 && colision00[0].distance < 5) {
+                //console.log("ColiS");
+                if (colision00[0].object.parent.userData.typeOf >= 1) {
+                    if (colision00[0].distance < 1) {
+                        //console.log("Ando colisionando con enemigo");
+                        if (colision00[0].object.parent.userData.typeOf == 2) {
+                            if (portalLevelStadistics.status == true && portalLevelStadistics.open == true) {
+                                systemGameLevel01.conditionLevel = 1;
+                            }
+                        } else {
+                            systemGameLevel01.points -= 100;
+                            $("#bar-label-points").text(systemGameLevel01.points);
+                            systemGameLevel01.lifeCharacter[0]--;
+                            paramsIniticials();
+                        }
+                    }
+                } else {
+                    movimientoPersonaje1.blockPersonajeS = true;
+                }
+            } else {
+                movimientoPersonaje1.blockPersonajeS = false;
+            }
+
+            rayCaster.set(personaje1.position, personaje1.rayos[1]);
+            var colision01 = rayCaster.intersectObjects(scenePilaresColision, true);
+            if (colision01.length > 0 && colision01[0].distance < 5) {
+                //console.log("ColiW");
+                if (colision01[0].object.parent.userData.typeOf >= 1) {
+                    if (colision01[0].distance < 1) {
+                        if (colision01[0].object.parent.userData.typeOf == 2) {
+                            if (portalLevelStadistics.status == true && portalLevelStadistics.open == true) {
+                                systemGameLevel01.conditionLevel = 1;
+                            }
+                        } else {
+                            //console.log("Ando colisionando con enemigo");
+                            systemGameLevel01.points -= 100;
+                            $("#bar-label-points").text(systemGameLevel01.points);
+                            systemGameLevel01.lifeCharacter[0]--;
+                            paramsIniticials();
+                        }
+                    }
+                } else {
+                    movimientoPersonaje1.blockPersonajeW = true;
+                }
+            } else {
+                movimientoPersonaje1.blockPersonajeW = false;
+            }
+            rayCaster.set(personaje1.position, personaje1.rayos[2]);
+            var colision02 = rayCaster.intersectObjects(scenePilaresColision, true);
+            if (colision02.length > 0 && colision02[0].distance < 5) {
+                //console.log("ColiD");
+                if (colision02[0].object.parent.userData.typeOf >= 1) {
+                    if (colision02[0].distance < 1) {
+                        if (colision02[0].object.parent.userData.typeOf == 2) {
+                            if (portalLevelStadistics.status == true && portalLevelStadistics.open == true) {
+                                systemGameLevel01.conditionLevel = 1;
+                            }
+                        } else {
+                            //console.log("Ando colisionando con enemigo");
+                            systemGameLevel01.points -= 100;
+                            $("#bar-label-points").text(systemGameLevel01.points);
+                            systemGameLevel01.lifeCharacter[0]--;
+                            paramsIniticials();
+                        }
+                    }
+                } else {
+                    movimientoPersonaje1.blockPersonajeD = true;
+                }
+            } else {
+                movimientoPersonaje1.blockPersonajeD = false;
+            }
+            rayCaster.set(personaje1.position, personaje1.rayos[3]);
+            var colision03 = rayCaster.intersectObjects(scenePilaresColision, true);
+            if (colision03.length > 0 && colision03[0].distance < 5) {
+                //console.log("ColiA");
+                if (colision03[0].object.parent.userData.typeOf >= 1) {
+                    if (colision03[0].distance < 1) {
+                        if (colision03[0].object.parent.userData.typeOf == 2) {
+                            if (portalLevelStadistics.status == true && portalLevelStadistics.open == true) {
+                                systemGameLevel01.conditionLevel = 1;
+                            }
+                        } else {
+                            //console.log("Ando colisionando con enemigo");
+                            systemGameLevel01.points -= 100;
+                            $("#bar-label-points").text(systemGameLevel01.points);
+                            systemGameLevel01.lifeCharacter[0]--;
+                            paramsIniticials();
+                        }
+                    }
+                } else {
+                    movimientoPersonaje1.blockPersonajeA = true;
+                }
+            } else {
+                movimientoPersonaje1.blockPersonajeA = false;
+            }
+            /*
+            for (var i = 0; i < scenePilaresColision.length; i++) {
+                if (scenePilaresColision[i].userData.colisionando == true) {
+                    console.log("Ando colisionando");
+                }
+            }*/
+
+        }
+
+        function colisionWorldPilar2() {
+            /*
+            //Leer la info de todos los rayos, de ahi simple activar algo sin importar de que direccion proviene (No importa de donde lo toque)
+            for (var i = 0; i < personaje1.rayos.length; i++) {
+                var rayo = personaje1.rayos[i];
+                rayCaster.set(personaje1.position, rayo);
+                var colisiones = rayCaster.intersectObjects(scenePilaresColision, true);
+                //console.log(colisiones);
+                if (colisiones.length > 0 && colisiones[0].distance < 5) {
+                    console.log("Ando colisionando" + scenePilaresColision[0]);
+                    //colisiones[0].object.parent.userData.colisionando = true;
+                }
+            }*/
+            //Importa de que direccion 0=abajo, 1=Arriba, 2=Derecha, 3=Izq
+            rayCaster.set(personaje2.position, personaje2.rayos[0]);
+            var colision00 = rayCaster.intersectObjects(scenePilaresColision, true);
+            if (colision00.length > 0 && colision00[0].distance < 5) {
+                //console.log("ColiS");
+                if (colision00[0].object.parent.userData.typeOf >= 1) {
+                    if (colision00[0].distance < 1) {
+                        //console.log("Ando colisionando con enemigo");
+                        if (colision00[0].object.parent.userData.typeOf == 2) {
+                            if (portalLevelStadistics.status == true && portalLevelStadistics.open == true) {
+                                systemGameLevel01.conditionLevel = 1;
+                            }
+                        } else {
+                            systemGameLevel01.points -= 100;
+                            $("#bar-label-points").text(systemGameLevel01.points);
+                            systemGameLevel01.lifeCharacter[0]--;
+                            paramsIniticials();
+                        }
+                    }
+                } else {
+                    movimientoPersonaje2.blockPersonajeS = true;
+                }
+            } else {
+                movimientoPersonaje2.blockPersonajeS = false;
+            }
+
+            rayCaster.set(personaje2.position, personaje2.rayos[1]);
+            var colision01 = rayCaster.intersectObjects(scenePilaresColision, true);
+            if (colision01.length > 0 && colision01[0].distance < 5) {
+                //console.log("ColiW");
+                if (colision01[0].object.parent.userData.typeOf >= 1) {
+                    if (colision01[0].distance < 1) {
+                        if (colision01[0].object.parent.userData.typeOf == 2) {
+                            if (portalLevelStadistics.status == true && portalLevelStadistics.open == true) {
+                                systemGameLevel01.conditionLevel = 1;
+                            }
+                        } else {
+                            //console.log("Ando colisionando con enemigo");
+                            systemGameLevel01.points -= 100;
+                            $("#bar-label-points").text(systemGameLevel01.points);
+                            systemGameLevel01.lifeCharacter[0]--;
+                            paramsIniticials();
+                        }
+                    }
+                } else {
+                    movimientoPersonaje2.blockPersonajeW = true;
+                }
+            } else {
+                movimientoPersonaje2.blockPersonajeW = false;
+            }
+            rayCaster.set(personaje2.position, personaje2.rayos[2]);
+            var colision02 = rayCaster.intersectObjects(scenePilaresColision, true);
+            if (colision02.length > 0 && colision02[0].distance < 5) {
+                //console.log("ColiD");
+                if (colision02[0].object.parent.userData.typeOf >= 1) {
+                    if (colision02[0].distance < 1) {
+                        if (colision02[0].object.parent.userData.typeOf == 2) {
+                            if (portalLevelStadistics.status == true && portalLevelStadistics.open == true) {
+                                systemGameLevel01.conditionLevel = 1;
+                            }
+                        } else {
+                            //console.log("Ando colisionando con enemigo");
+                            systemGameLevel01.points -= 100;
+                            $("#bar-label-points").text(systemGameLevel01.points);
+                            systemGameLevel01.lifeCharacter[0]--;
+                            paramsIniticials();
+                        }
+                    }
+                } else {
+                    movimientoPersonaje2.blockPersonajeD = true;
+                }
+            } else {
+                movimientoPersonaje2.blockPersonajeD = false;
+            }
+            rayCaster.set(personaje2.position, personaje2.rayos[3]);
+            var colision03 = rayCaster.intersectObjects(scenePilaresColision, true);
+            if (colision03.length > 0 && colision03[0].distance < 5) {
+                //console.log("ColiA");
+                if (colision03[0].object.parent.userData.typeOf >= 1) {
+                    if (colision03[0].distance < 1) {
+                        if (colision03[0].object.parent.userData.typeOf == 2) {
+                            if (portalLevelStadistics.status == true && portalLevelStadistics.open == true) {
+                                systemGameLevel01.conditionLevel = 1;
+                            }
+                        } else {
+                            //console.log("Ando colisionando con enemigo");
+                            systemGameLevel01.points -= 100;
+                            $("#bar-label-points").text(systemGameLevel01.points);
+                            systemGameLevel01.lifeCharacter[0]--;
+                            paramsIniticials();
+                        }
+                    }
+                } else {
+                    movimientoPersonaje2.blockPersonajeA = true;
+                }
+            } else {
+                movimientoPersonaje2.blockPersonajeA = false;
+            }
+            /*
+            for (var i = 0; i < scenePilaresColision.length; i++) {
+                if (scenePilaresColision[i].userData.colisionando == true) {
+                    console.log("Ando colisionando");
+                }
+            }*/
+
+        }
+
+        function colisionBomb1(indice) {
+            //Leer la info de todos los rayos, de ahi simple activar algo sin importar de que direccion proviene (No importa de donde lo toque)
+            //scenePilaresColision[0].position.y = -10;
+            for (var i = 0; i < bombsCharacter1[indice].rayosBomb.length; i++) {
+                var rayo = bombsCharacter1[indice].rayosBomb[i];
+                rayCasterBomb.set(bombsCharacter1[indice].position, rayo);
+                var colisiones = rayCasterBomb.intersectObjects(scenePilaresColision, true);
+                //console.log(colisiones);
+                if (colisiones.length > 0 && colisiones[0].distance < 8) {
+                    if (colisiones[0].object.parent.userData.type == true) {
+                        if (colisiones[0].object.parent.position.x == 28 && colisiones[0].object.parent.position.z == -2) {
+                            portalLevelStadistics.status = true;
+                        }
+                        systemGameLevel01.points += 100;
+                        $("#bar-label-points").text(systemGameLevel01.points);
+                        colisiones[0].object.parent.userData.destroy = true;
+                        colisiones[0].object.parent.position.y = -10;
+                        //console.log(colisiones[0].object.parent);
+                    }
+                    //colisiones[0].object.parent.userData.colisionando = true;
+                }
+                var colisionesPersonaje = rayCasterBomb.intersectObject(personaje1, true);
+                if (colisionesPersonaje.length > 0 && colisionesPersonaje[0].distance < 8) {
+                    systemGameLevel01.lifeCharacter[0]--;
+                    systemGameLevel01.points -= 500;
+                    $("#bar-label-points").text(systemGameLevel01.points);
+                    paramsIniticials();
+                }
+            }
+        }
+
+        function colisionBomb2(indice) {
+            //Leer la info de todos los rayos, de ahi simple activar algo sin importar de que direccion proviene (No importa de donde lo toque)
+            //scenePilaresColision[0].position.y = -10;
+            for (var i = 0; i < bombsCharacter2[indice].rayosBomb.length; i++) {
+                var rayo = bombsCharacter2[indice].rayosBomb[i];
+                rayCasterBomb.set(bombsCharacter2[indice].position, rayo);
+                var colisiones = rayCasterBomb.intersectObjects(scenePilaresColision, true);
+                //console.log(colisiones);
+                if (colisiones.length > 0 && colisiones[0].distance < 8) {
+                    if (colisiones[0].object.parent.userData.type == true) {
+                        if (colisiones[0].object.parent.position.x == 28 && colisiones[0].object.parent.position.z == -2) {
+                            portalLevelStadistics.status = true;
+                        }
+                        systemGameLevel01.points += 100;
+                        $("#bar-label-points").text(systemGameLevel01.points);
+                        colisiones[0].object.parent.userData.destroy = true;
+                        colisiones[0].object.parent.position.y = -10;
+                        //console.log(colisiones[0].object.parent);
+                    }
+                    //colisiones[0].object.parent.userData.colisionando = true;
+                }
+                var colisionesPersonaje = rayCasterBomb.intersectObject(personaje2, true);
+                if (colisionesPersonaje.length > 0 && colisionesPersonaje[0].distance < 8) {
+                    systemGameLevel01.lifeCharacter[0]--;
+                    systemGameLevel01.points -= 500;
+                    $("#bar-label-points").text(systemGameLevel01.points);
+                    paramsIniticials2();
+                }
+            }
+        }
+
+        function dropBomb1() {
+            var i = personaje1.dataCharacter.actualBomb;
+            //debugger;
+            bombsCharacter1[personaje1.dataCharacter.actualBomb].userData.actualBomb = true;
+            bombsCharacter1[personaje1.dataCharacter.actualBomb].position.x = movimientoPersonaje1.MovX;
+            bombsCharacter1[personaje1.dataCharacter.actualBomb].position.y = movimientoPersonaje1.MovY;
+            bombsCharacter1[personaje1.dataCharacter.actualBomb].position.z = movimientoPersonaje1.MovZ;
+            bombsCharacter1[personaje1.dataCharacter.actualBomb].userData.MovX = movimientoPersonaje1.MovX;
+            bombsCharacter1[personaje1.dataCharacter.actualBomb].userData.MovY = movimientoPersonaje1.MovY;
+            bombsCharacter1[personaje1.dataCharacter.actualBomb].userData.MovZ = movimientoPersonaje1.MovZ;
+            setTimeout(function() {
+                exploteBomb1(i);
+            }, 3000);
+            /*
+            while (i < personaje1.dataCharacter.maxBomb) {
+                if (bombsCharacter1[personaje1.dataCharacter.actualBomb].userData.actualBomb == true) {
+                    bombsCharacter1[i].position.x = movimientoPersonaje1.MovX;
+                    bombsCharacter1[i].position.z = movimientoPersonaje1.MovZ;
+                }
+                i++;
+            }*/
+        }
+
+        function dropBomb2() {
+            var i = personaje2.dataCharacter.actualBomb;
+            //debugger;
+            bombsCharacter2[personaje2.dataCharacter.actualBomb].userData.actualBomb = true;
+            bombsCharacter2[personaje2.dataCharacter.actualBomb].position.x = movimientoPersonaje2.MovX;
+            bombsCharacter2[personaje2.dataCharacter.actualBomb].position.y = movimientoPersonaje2.MovY;
+            bombsCharacter2[personaje2.dataCharacter.actualBomb].position.z = movimientoPersonaje2.MovZ;
+            bombsCharacter2[personaje2.dataCharacter.actualBomb].userData.MovX = movimientoPersonaje2.MovX;
+            bombsCharacter2[personaje2.dataCharacter.actualBomb].userData.MovY = movimientoPersonaje2.MovY;
+            bombsCharacter2[personaje2.dataCharacter.actualBomb].userData.MovZ = movimientoPersonaje2.MovZ;
+            setTimeout(function() {
+                exploteBomb2(i);
+            }, 3000);
+            /*
+            while (i < personaje1.dataCharacter.maxBomb) {
+                if (bombsCharacter1[personaje1.dataCharacter.actualBomb].userData.actualBomb == true) {
+                    bombsCharacter1[i].position.x = movimientoPersonaje1.MovX;
+                    bombsCharacter1[i].position.z = movimientoPersonaje1.MovZ;
+                }
+                i++;
+            }*/
+        }
+
+        function exploteBomb1(indice) {
+            //debugger;
+            flamesCharacter1[0].userData.MovX = bombsCharacter1[indice].userData.MovX
+            flamesCharacter1[0].userData.MovY = bombsCharacter1[indice].userData.MovY
+            flamesCharacter1[0].userData.MovZ = bombsCharacter1[indice].userData.MovZ
+
+            //arribaFlama
+            flamesCharacter1[1].userData.MovX = flamesCharacter1[0].userData.MovX;
+            flamesCharacter1[1].userData.MovY = flamesCharacter1[0].userData.MovY;
+            flamesCharacter1[1].userData.MovZ = flamesCharacter1[0].userData.MovZ - 7;
+
+            //AbajoFlama
+            flamesCharacter1[2].userData.MovX = flamesCharacter1[0].userData.MovX;
+            flamesCharacter1[2].userData.MovY = flamesCharacter1[0].userData.MovY;
+            flamesCharacter1[2].userData.MovZ = flamesCharacter1[0].userData.MovZ + 7;
+
+            //DerechaFlama
+            flamesCharacter1[3].userData.MovX = flamesCharacter1[0].userData.MovX + 7;
+            flamesCharacter1[3].userData.MovY = flamesCharacter1[0].userData.MovY;
+            flamesCharacter1[3].userData.MovZ = flamesCharacter1[0].userData.MovZ;
+
+            //IzquierdaFlama
+            flamesCharacter1[4].userData.MovX = flamesCharacter1[0].userData.MovX - 7;
+            flamesCharacter1[4].userData.MovY = flamesCharacter1[0].userData.MovY;
+            flamesCharacter1[4].userData.MovZ = flamesCharacter1[0].userData.MovZ;
+
+            for (var i = 0; i < 5; i++) {
+                flamesCharacter1[i].position.x = flamesCharacter1[i].userData.MovX;
+                flamesCharacter1[i].position.y = flamesCharacter1[i].userData.MovY;
+                flamesCharacter1[i].position.z = flamesCharacter1[i].userData.MovZ;
+            }
+            //console.log("Voy a explotar: " + indice);
+            //bombsCharacter1[personaje1.dataCharacter.actualBomb - 1].userData.actualBomb = false;
+            setTimeout(exploteQuit1, 500);
+            colisionBomb1(indice);
+            bombsCharacter1[indice].userData.actualBomb = false;
+            bombsCharacter1[indice].position.x = 0;
+            bombsCharacter1[indice].position.y = -10;
+            bombsCharacter1[indice].position.z = 0;
+            bombsCharacter1[indice].userData.MovX = 0;
+            bombsCharacter1[indice].userData.MovY = -10;
+            bombsCharacter1[indice].userData.MovZ = 0;
+
+        }
+
+        function exploteBomb2(indice) {
+            //debugger;
+            flamesCharacter2[0].userData.MovX = bombsCharacter2[indice].userData.MovX
+            flamesCharacter2[0].userData.MovY = bombsCharacter2[indice].userData.MovY
+            flamesCharacter2[0].userData.MovZ = bombsCharacter2[indice].userData.MovZ
+
+            //arribaFlama
+            flamesCharacter2[1].userData.MovX = flamesCharacter2[0].userData.MovX;
+            flamesCharacter2[1].userData.MovY = flamesCharacter2[0].userData.MovY;
+            flamesCharacter2[1].userData.MovZ = flamesCharacter2[0].userData.MovZ - 7;
+
+            //AbajoFlama
+            flamesCharacter2[2].userData.MovX = flamesCharacter2[0].userData.MovX;
+            flamesCharacter2[2].userData.MovY = flamesCharacter2[0].userData.MovY;
+            flamesCharacter2[2].userData.MovZ = flamesCharacter2[0].userData.MovZ + 7;
+
+            //DerechaFlama
+            flamesCharacter2[3].userData.MovX = flamesCharacter2[0].userData.MovX + 7;
+            flamesCharacter2[3].userData.MovY = flamesCharacter2[0].userData.MovY;
+            flamesCharacter2[3].userData.MovZ = flamesCharacter2[0].userData.MovZ;
+
+            //IzquierdaFlama
+            flamesCharacter2[4].userData.MovX = flamesCharacter2[0].userData.MovX - 7;
+            flamesCharacter2[4].userData.MovY = flamesCharacter2[0].userData.MovY;
+            flamesCharacter2[4].userData.MovZ = flamesCharacter2[0].userData.MovZ;
+
+            for (var i = 0; i < 5; i++) {
+                flamesCharacter2[i].position.x = flamesCharacter2[i].userData.MovX;
+                flamesCharacter2[i].position.y = flamesCharacter2[i].userData.MovY;
+                flamesCharacter2[i].position.z = flamesCharacter2[i].userData.MovZ;
+            }
+            //console.log("Voy a explotar: " + indice);
+            //bombsCharacter1[personaje1.dataCharacter.actualBomb - 1].userData.actualBomb = false;
+            setTimeout(exploteQuit2, 500);
+            colisionBomb2(indice);
+            bombsCharacter2[indice].userData.actualBomb = false;
+            bombsCharacter2[indice].position.x = 0;
+            bombsCharacter2[indice].position.y = -10;
+            bombsCharacter2[indice].position.z = 0;
+            bombsCharacter2[indice].userData.MovX = 0;
+            bombsCharacter2[indice].userData.MovY = -10;
+            bombsCharacter2[indice].userData.MovZ = 0;
+
+        }
+
+        function exploteQuit1() {
+            for (var i = 0; i < 5; i++) {
+                flamesCharacter1[i].userData.MovX = 0;
+                flamesCharacter1[i].userData.MovY = -10;
+                flamesCharacter1[i].userData.MovZ = 0;
+                flamesCharacter1[i].position.x = flamesCharacter1[i].userData.MovX;
+                flamesCharacter1[i].position.y = flamesCharacter1[i].userData.MovY;
+                flamesCharacter1[i].position.z = flamesCharacter1[i].userData.MovZ;
+            }
+        }
+
+        function exploteQuit2() {
+            for (var i = 0; i < 5; i++) {
+                flamesCharacter2[i].userData.MovX = 0;
+                flamesCharacter2[i].userData.MovY = -10;
+                flamesCharacter2[i].userData.MovZ = 0;
+                flamesCharacter2[i].position.x = flamesCharacter2[i].userData.MovX;
+                flamesCharacter2[i].position.y = flamesCharacter2[i].userData.MovY;
+                flamesCharacter2[i].position.z = flamesCharacter2[i].userData.MovZ;
+            }
+        }
+
+        function enableBomb() {
+            //console.log("Bombita");
+            personaje1.dataCharacter.timeSpam = false;
+        }
+
+        function enableBomb2() {
+            //console.log("Bombita");
+            personaje2.dataCharacter.timeSpam = false;
+        }
+
+        function enemysParamsInicials() {
+
+            enemyAndlarCharacters[0].rotation.y = THREE.Math.degToRad(180);
+            enemyAndlarCharacters[1].userData.directionCharacter = 1;
+            enemyAndlarCharacters[1].position.z = 33.5;
+            enemyAndlarCharacters[1].position.x = -14;
+            enemyAndlarCharacters[1].rotation.y = THREE.Math.degToRad(90);
+
+            enemyAndlarCharacters[2].userData.directionCharacter = 0;
+            //enemyAndlarCharacters[2].position.z = 33.5;
+            enemyAndlarCharacters[2].position.x = -28;
+            enemyAndlarCharacters[2].rotation.y = THREE.Math.degToRad(180);
+
+        }
+
+        function enemysParamsInicialsLevel02() {
+
+            enemyAndlarCharacters[0].rotation.y = THREE.Math.degToRad(180);
+            enemyAndlarCharacters[1].userData.directionCharacter = 1;
+            enemyAndlarCharacters[1].position.z = 33.5;
+            enemyAndlarCharacters[1].position.x = -14;
+            enemyAndlarCharacters[1].rotation.y = THREE.Math.degToRad(90);
+
+            enemyAndlarCharacters[2].userData.directionCharacter = 0;
+            //enemyAndlarCharacters[2].position.z = 33.5;
+            enemyAndlarCharacters[2].position.x = -28;
+            enemyAndlarCharacters[2].rotation.y = THREE.Math.degToRad(180);
+
+            enemyAndlarCharacters[3].userData.directionCharacter = 1;
+            enemyAndlarCharacters[3].position.z = -36;
+            enemyAndlarCharacters[3].position.x = 28;
+            enemyAndlarCharacters[3].rotation.y = THREE.Math.degToRad(90);
+
+            enemyAndlarCharacters[4].userData.directionCharacter = 1;
+            enemyAndlarCharacters[4].position.z = 32;
+            enemyAndlarCharacters[4].position.x = 21;
+            enemyAndlarCharacters[4].rotation.y = THREE.Math.degToRad(90);
+
+        }
+
+        function enemyLogicAndlar() {
+            //console.log(scenePilaresColision);
+            //scenePilaresColision[0].position.y = -10;
+            var indice = 0;
+            while (indice < enemys.Andlar) {
+                for (var i = 0; i < enemyAndlarCharacters[indice].rayosEnemy.length; i++) {
+                    var rayo = enemyAndlarCharacters[indice].rayosEnemy[i];
+                    rayCasterBomb.set(enemyAndlarCharacters[indice].position, rayo);
+                    var colisiones = rayCasterBomb.intersectObjects(scenePilaresColision, true);
+                    //console.log(colisiones);
+
+                    if (colisiones.length > 0 && colisiones[0].distance < 3) {
+                        //console.log("Enemigo al muro");
+                        if (enemyAndlarCharacters[indice].userData.directionCharacter == 0) {
+                            enemyAndlarCharacters[indice].rotation.y = THREE.Math.degToRad(0);
+                            enemyAndlarCharacters[indice].userData.directionCharacter = 2;
+                        } else if (enemyAndlarCharacters[indice].userData.directionCharacter == 2) {
+                            enemyAndlarCharacters[indice].rotation.y = THREE.Math.degToRad(180);
+                            enemyAndlarCharacters[indice].userData.directionCharacter = 0;
+                        }
+                        if (enemyAndlarCharacters[indice].userData.directionCharacter == 1) {
+                            enemyAndlarCharacters[indice].userData.directionCharacter = 3;
+                            enemyAndlarCharacters[indice].rotation.y = THREE.Math.degToRad(270);
+                        } else if (enemyAndlarCharacters[indice].userData.directionCharacter == 3) {
+                            enemyAndlarCharacters[indice].rotation.y = THREE.Math.degToRad(90);
+                            enemyAndlarCharacters[indice].userData.directionCharacter = 1;
+                        }
+                    }
+                    if (enemyAndlarCharacters[indice].userData.directionCharacter == 0) {
+                        enemyAndlarCharacters[indice].position.z -= 1 * deltaTime;
+                    }
+                    if (enemyAndlarCharacters[indice].userData.directionCharacter == 1) {
+                        enemyAndlarCharacters[indice].position.x += 1 * deltaTime;
+                    }
+                    if (enemyAndlarCharacters[indice].userData.directionCharacter == 2) {
+                        enemyAndlarCharacters[indice].position.z += 1 * deltaTime;
+                    }
+                    if (enemyAndlarCharacters[indice].userData.directionCharacter == 3) {
+                        enemyAndlarCharacters[indice].position.x -= 1 * deltaTime;
+                    }
+
+                }
+                indice++;
+            }
+        }
+
+        function portalLevelSetup() {
+            portalLevel.position.z = portalLevelStadistics.MovZ;
+            portalLevel.position.x = portalLevelStadistics.MovX;
+            portalLevel.position.y = portalLevelStadistics.MovY;
+        }
+
+        function updatePortalLevel() {
+            var aux = enemys.totalEnemy;
+            for (var i = 0; i < enemys.Andlar; i++) {
+                if (enemyAndlarCharacters[i].userData.destroy == true) {;
+                    //console.log(enemyAndlarCharacters);
+                    aux--;
+                }
+            }
+            if (aux <= 0) {
+                portalLevelStadistics.open = true;
+            }
+
+            if (portalLevelStadistics.status == true) {
+                portalLevelStadistics.MovY = 1;
+                if (portalLevelStadistics.open == true) {
+                    portalLevelOpen.position.x = portalLevelStadistics.MovX;
+                    portalLevelOpen.position.y = portalLevelStadistics.MovY;
+                    portalLevelOpen.position.z = portalLevelStadistics.MovZ;
+                } else {
+                    portalLevelClose.position.x = portalLevelStadistics.MovX;
+                    portalLevelClose.position.y = portalLevelStadistics.MovY;
+                    portalLevelClose.position.z = portalLevelStadistics.MovZ;
+                    portalLevelOpen.position.y = -25;
+                }
+            } else {
+                portalLevelClose.position.x = portalLevelStadistics.MovX;
+                portalLevelClose.position.y = portalLevelStadistics.MovY;
+                portalLevelClose.position.z = portalLevelStadistics.MovZ;
+                portalLevelOpen.position.x = portalLevelStadistics.MovX;
+                portalLevelOpen.position.y = portalLevelStadistics.MovY;
+                portalLevelOpen.position.z = portalLevelStadistics.MovZ;
+            }
+            portalLevelClose.rotation.y += THREE.Math.degToRad(30 * deltaTime);
+            portalLevelOpen.rotation.y += THREE.Math.degToRad(30 * deltaTime);
+            //console.log(portalLevelClose.rotation.y);
+        }
+
+        function levelStatus() {
+            //console.log(systemGameLevel01.lifeCharacter[0]);
+            if (systemGameLevel01.lifeCharacter[0] <= 0) {
+                systemGameLevel01.conditionLevel = 2;
+            }
+            //systemGameLevel01.conditionLevel = 2;
+            switch (systemGameLevel01.conditionLevel) {
+                case 1:
+                    if (systemGameLevel01.active == 0) {
+                        console.log("ganaste Jugador 1");
+                        systemGameLevel01.points += 2000;
+                        $("#bar-label-points").text(systemGameLevel01.points);
+                        $("body").append("<div id='screen-end-level'><img id='screen-end-bomb' src='assets/BombPixel.gif'><img id='screen-end-win' src='assets/YouWin.png'><img id='screen-end-facebookLogo' src='assets/facebookLogo.png'></div>");
+                        $("#screen-end-facebookLogo").on("click", function() {
+                            shareFB();
+                        });
+
+                        systemGameLevel01.active = 1;
+                    }
+                    break;
+                case 2:
+                    if (systemGameLevel01.active == 0) {
+                        console.log("Perdiste Jugador 1");
+                        $("body").append("<div id='screen-end-level'><img id='screen-end-bomb' src='assets/BombPixel.gif'><img id='screen-end-lose' src='assets/GameOver.png'><img id='screen-end-facebookLogo' src='assets/facebookLogo.png'></div>");
+                        $("#screen-end-facebookLogo").on("click", function() {
+                            shareFB();
+                        });
+                        systemGameLevel01.active = 1;
+                    }
+                    break;
+                default:
+                    break;
+            }
+
+        }
+
+        //tiempo
+        function timeLevel1() {
+            segundos -= 1 * deltaTime;
+            //console.log("minuto: " + minuto + "segundo: " + segundos);
+            if (segundos <= 0) {
+                minuto -= 1;
+                segundos = 60;
+                //console.log("minuto: " + minuto);
+            }
+            if (minuto <= 0.0 && segundos <= 0.9) {
+                systemGameLevel01.conditionLevel = 2;
+            }
+            $("#bar-label").text(minuto + ":" + Number.parseInt(segundos));
+        }
+
+        //Menu
+        function menu() {
+            $("#bar-section").remove();
+            $("body").append("<div id='menu-principal'></div>");
+            $("#menu-principal").append("<img id='menu-principal-background' src='assets/banner.jpg'><img id='menu-principal-button01' src='assets/ButtonSolo.png'><img id='menu-principal-button02' src='assets/ButtonSoloHard.png'><img id='menu-principal-button03' src='assets/ButtonMultiplayer.png'>");
+            $("#menu-principal-button01").on("click", function() {
+                console.log("Button01");
+                statusGameEnviroment = 1;
+                $("#audioTheme")[0].play();
+                $("#audioTheme").prop("loop", true);
+                $('#audioTheme').prop("volume", volumenGlobal);
+                optionsCicle();
+            });
+            $("#menu-principal-button02").on("click", function() {
+                console.log("Button02");
+                statusGameEnviroment = 2;
+                $("#audioTheme")[0].play();
+                $("#audioTheme").prop("loop", true);
+                $('#audioTheme').prop("volume", volumenGlobal);
+                optionsCicle();
+            });
+            $("#menu-principal-button03").on("click", function() {
+                console.log("Button03");
+                statusGameEnviroment = 3;
+                $("#audioTheme")[0].play();
+                $("#audioTheme").prop("loop", true);
+                $('#audioTheme').prop("volume", volumenGlobal);
+                optionsCicle();
+            });
+        }
+
+        function optionsCicle() {
+            switch (statusGameEnviroment) {
+                case 0:
+                    menu();
+                    break;
+                case 1:
+                    setupScene();
+                    models();
+                    paramsIniticials();
+                    render();
+
+                    document.addEventListener('keydown', onKeyDown);
+                    document.addEventListener('keyup', onKeyUp);
+                    break;
+                case 2:
+                    setupScene();
+                    models();
+                    paramsIniticials();
+                    render();
+
+                    document.addEventListener('keydown', onKeyDown);
+                    document.addEventListener('keyup', onKeyUp);
+                    break;
+                case 3:
+                    setupScene();
+                    models();
+                    paramsIniticials();
+                    paramsIniticials2();
+                    render();
+
+                    document.addEventListener('keydown', onKeyDown);
+                    document.addEventListener('keyup', onKeyUp);
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        function shareFB() {
+            //var score = $("#bar-label-points").val();
+            shareScore(systemGameLevel01.points);
+        }
+
+        function sendProduct(product) {
+            // Objeto en formato JSON el cual le enviaremos al webservice (PHP)
+            var dataToSend = {
+                action: "addProduct",
+                id: product.id,
+                nickname: product.nickname,
+                description: product.description,
+                score: product.score
+            };
+            $.ajax({
+                url: "webservice/webservice.php",
+                async: true,
+                type: 'POST',
+                data: dataToSend,
+                success: function(data) {
+                    alert(data);
+                },
+                error: function(x, y, z) {
+                    alert("Error en Webservice:" + x + y + z);
+                }
+            });
+        }
+
+        function getProducts() {
+
+            var dataToSend = {
+                action: "getProducts"
+            };
+            $.ajax({
+                //url: "https://miwebservices.000webhostapp.com/webservice/webservice.php",
+                url: "webservice/webservice.php",
+                async: true,
+                type: 'POST',
+                data: dataToSend,
+                dataType: 'json',
+                success: function(data) {
+                    //console.log(JSON.stringify(data));
+                    var longitud = (Object.keys(data).length);
+                    var i = 0;
+                    if (longitud > 0) {
+                        while (i <= longitud) {
+                            $("#paneles").append("<div class='product'> <p>" + data[i]["p_name"] + "</p><p>" + data[i]["p_detail"] +
+                                "</p><p>" + data[i]["p_price"] + "</p><button class='btnDelete'>Borrar</button></div>");
+                            i++;
+                        }
+                    }
+                    console.log((data[0]["p_name"]));
+                },
+                error: function(x, y, z) {
+                    //alert("Error en Webservice:" + x + y + z);
+                }
+            });
+        }
+    </script>
+</head>
+
+<body>
+    <audio id="audioTheme" src="assets/theme.mp3"></audio>
+    <div id="scene-section" />
+
+</body>
+
+</html>
