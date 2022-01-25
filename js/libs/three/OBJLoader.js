@@ -1,5 +1,5 @@
 /**
- * @author mrdoob / http://mrdoob.com/
+ * @author mrdoob
  */
 
 THREE.OBJLoader = function ( manager ) {
